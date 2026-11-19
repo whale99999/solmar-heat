@@ -3,17 +3,135 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Block Dodger</title>
+<title>Solmar Heat — an open-world crime game</title>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #11141b; }
-  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-  /* Read aloud, never shown: the status line screen readers announce. */
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #1a0f1e; font-family: "Segoe UI", system-ui, sans-serif; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
   #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; }
+  #minimap-wrap { position: absolute; left: 18px; bottom: 18px; width: 188px; height: 188px;
+    border: 3px solid rgba(255,255,255,.85); border-radius: 50%; overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,.55); background: #20303c; }
+  #minimap { width: 188px; height: 188px; display: block; }
+  #cash-box { position: absolute; right: 22px; top: 16px; text-align: right; text-shadow: 0 2px 6px rgba(0,0,0,.8); }
+  #cash { font-size: 30px; font-weight: 800; color: #7dff9a; letter-spacing: .5px; }
+  #respect { font-size: 14px; font-weight: 700; color: #ffd75e; margin-top: 2px; }
+  #clock { font-size: 13px; color: #cfe8ff; margin-top: 2px; font-weight: 600; }
+  #stars { position: absolute; right: 22px; top: 108px; font-size: 30px; letter-spacing: 3px; text-shadow: 0 2px 6px rgba(0,0,0,.8); }
+  #stars .on { color: #ffd75e; }
+  #stars .off { color: rgba(255,255,255,.22); }
+  #health-wrap { position: absolute; left: 226px; bottom: 26px; width: 170px; }
+  .bar-label { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-shadow: 0 1px 4px #000; margin-bottom: 3px; }
+  .bar { height: 10px; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.5); border-radius: 5px; overflow: hidden; }
+  .bar > div { height: 100%; transition: width .15s; }
+  #health-fill { background: linear-gradient(90deg, #ff5d73, #ff9a5d); width: 100%; }
+  #bust-wrap { margin-top: 7px; display: none; }
+  #bust-fill { background: linear-gradient(90deg, #4db2ff, #b04dff); width: 0%; }
+  #speedo { position: absolute; right: 24px; bottom: 20px; text-align: right; display: none; text-shadow: 0 2px 6px rgba(0,0,0,.85); }
+  #speed-num { font-size: 44px; font-weight: 800; line-height: 1; }
+  #speed-unit { font-size: 13px; font-weight: 700; letter-spacing: 2px; color: #ffd75e; }
+  #objective { position: absolute; left: 50%; top: 84px; transform: translateX(-50%); max-width: 640px;
+    background: rgba(10,10,24,.62); border-left: 5px solid #ff9a3d; padding: 9px 16px; border-radius: 6px;
+    font-size: 16px; font-weight: 600; text-align: center; text-shadow: 0 1px 3px #000; display: none; }
+  #objective b { color: #ffb35e; letter-spacing: 1px; }
+  #banner { position: absolute; left: 50%; top: 34%; transform: translate(-50%,-50%); text-align: center; display: none; }
+  #banner .big { font-size: 54px; font-weight: 900; letter-spacing: 3px; color: #ffd75e;
+    text-shadow: 0 0 22px rgba(255,120,60,.75), 0 4px 10px rgba(0,0,0,.8); }
+  #banner .sub { font-size: 19px; font-weight: 600; color: #fff; text-shadow: 0 2px 6px #000; margin-top: 6px; }
+  #toast { position: absolute; left: 50%; bottom: 120px; transform: translateX(-50%); font-size: 16px; font-weight: 600;
+    background: rgba(10,10,24,.66); padding: 8px 18px; border-radius: 20px; display: none; text-shadow: 0 1px 3px #000; }
+  #prompt { position: absolute; left: 50%; bottom: 210px; transform: translateX(-50%); font-size: 16px; font-weight: 700;
+    background: rgba(10,10,24,.66); padding: 7px 16px; border-radius: 6px; display: none; }
+  #prompt kbd { background: #ffd75e; color: #20130a; border-radius: 4px; padding: 1px 7px; font-family: inherit; }
+
+  /* ---------- Menus ---------- */
+  .screen { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; color: #fff; z-index: 5; }
+  #title-screen { background: linear-gradient(180deg, rgba(38,10,54,.25), rgba(10,4,20,.78) 78%); }
+  #title-screen h1 { font-size: 92px; margin: 0; font-weight: 900; letter-spacing: 4px; line-height: .95;
+    background: linear-gradient(180deg, #ffe95e 15%, #ff9a3d 52%, #ff4d8d 90%); -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 6px 22px rgba(255,77,141,.45)); }
+  #title-screen h2 { margin: 4px 0 0; font-size: 21px; letter-spacing: 6px; font-weight: 700; color: #aef3ff; text-shadow: 0 2px 8px #000; }
+  .menu-box { margin-top: 34px; background: rgba(8,6,20,.72); border: 1px solid rgba(255,255,255,.25); border-radius: 12px; padding: 20px 34px; }
+  .menu-box p { margin: 5px 0; font-size: 15.5px; }
+  .menu-box kbd { background: #ffd75e; color: #20130a; border-radius: 4px; padding: 0 7px; font-weight: 700; font-family: inherit; }
+  .press { margin-top: 26px; font-size: 19px; font-weight: 800; letter-spacing: 2px; color: #ffd75e; animation: pulse 1.2s infinite; text-shadow: 0 2px 8px #000; }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .dim-screen { background: rgba(6,3,14,.72); }
+  .dim-screen h1 { font-size: 58px; margin: 0; letter-spacing: 3px; font-weight: 900; }
+  #death-screen h1 { color: #ff5d73; text-shadow: 0 0 24px rgba(255,60,90,.6); }
+  #busted-screen h1 { color: #6fc3ff; text-shadow: 0 0 24px rgba(80,160,255,.6); }
+  #complete-screen h1 { color: #ffd75e; text-shadow: 0 0 24px rgba(255,180,60,.6); }
+  .dim-screen p { font-size: 17px; max-width: 560px; line-height: 1.45; }
 </style>
 </head>
 <body>
-<canvas id="game" aria-label="Block Dodger: move the paddle left and right to dodge falling blocks and catch coins"></canvas>
+<canvas id="game" aria-label="Solmar Heat: an open-world crime game. Explore Port Solmar on foot and by car."></canvas>
 <p id="status" role="status" aria-live="polite"></p>
+
+<div id="hud">
+  <div id="minimap-wrap"><canvas id="minimap" width="188" height="188"></canvas></div>
+  <div id="cash-box">
+    <div id="cash">$0</div>
+    <div id="respect">RESPECT ★ 0</div>
+    <div id="clock">18:24 · PORT SOLMAR</div>
+  </div>
+  <div id="stars"><span class="off">★</span><span class="off">★</span><span class="off">★</span><span class="off">★</span><span class="off">★</span></div>
+  <div id="health-wrap">
+    <div class="bar-label">HEALTH</div>
+    <div class="bar"><div id="health-fill"></div></div>
+    <div id="bust-wrap">
+      <div class="bar-label" style="color:#9fd0ff">BUSTED</div>
+      <div class="bar"><div id="bust-fill"></div></div>
+    </div>
+  </div>
+  <div id="speedo"><div id="speed-num">0</div><div id="speed-unit">KM/H</div></div>
+  <div id="objective"></div>
+  <div id="banner"><div class="big"></div><div class="sub"></div></div>
+  <div id="toast"></div>
+  <div id="prompt"></div>
+</div>
+
+<div id="title-screen" class="screen">
+  <h1>SOLMAR<br>HEAT</h1>
+  <h2>PORT SOLMAR · EST. TROUBLE</h2>
+  <div class="menu-box">
+    <p><kbd>W A S D</kbd> move &nbsp;·&nbsp; <kbd>Shift</kbd> sprint &nbsp;·&nbsp; <kbd>E</kbd> enter / steal car</p>
+    <p><kbd>Mouse</kbd> aim &nbsp;·&nbsp; <kbd>Click</kbd> punch / shoot &nbsp;·&nbsp; <kbd>Space</kbd> handbrake</p>
+    <p><kbd>P</kbd> pause &nbsp;·&nbsp; <kbd>M</kbd> save game &nbsp;·&nbsp; Follow the <b style="color:#ffb35e">orange marker</b> to work for the Marina crew</p>
+  </div>
+  <div class="press">PRESS ENTER TO PLAY</div>
+</div>
+
+<div id="pause-screen" class="screen dim-screen">
+  <h1>PAUSED</h1>
+  <p id="pause-stats"></p>
+  <div class="press">PRESS P TO RESUME</div>
+</div>
+
+<div id="death-screen" class="screen dim-screen">
+  <h1>WASTED</h1>
+  <p id="death-text">The city chewed you up.</p>
+  <div class="press">PRESS ENTER TO WAKE UP AT THE CLINIC</div>
+</div>
+
+<div id="busted-screen" class="screen dim-screen">
+  <h1>BUSTED</h1>
+  <p id="busted-text">The Solmar PD took you in.</p>
+  <div class="press">PRESS ENTER TO POST BAIL</div>
+</div>
+
+<div id="complete-screen" class="screen dim-screen">
+  <h1>KING OF SOLMAR</h1>
+  <p id="complete-text"></p>
+  <div class="press">PRESS ENTER TO KEEP ROAMING</div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>

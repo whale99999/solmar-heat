@@ -1,61 +1,86 @@
-// Every tuning number and colour in one place. The playfield is a fixed 1280x720 logical area;
-// the renderer scales it to the window, so no rule below depends on the screen size.
+// Solmar Heat — every tuning number, name and colour in one place.
+// Port Solmar is an original sun-soaked coastal city: a grid of avenues, a beach
+// strip along the south edge, a marina on the south-west pier. Nothing here is
+// borrowed from any commercial game; every name below was invented for this one.
 
-export const FIELD = { width: 1280, height: 720, groundY: 664 };
-
-/** The simulation's fixed step, in seconds: 60 updates a second whatever the display's rate. */
-export const STEP = 1 / 60;
+export const WORLD = {
+  seed: 20261119,
+  blockPitch: 46,          // distance between avenue centrelines
+  roadHalf: 7,             // half the width of an avenue
+  gridHalf: 3,             // avenues run from -3..3 pitches each way (7 avenues)
+  beachZ: 196,             // sand starts here, ocean beyond
+  oceanZ: 224,
+  cityEdge: 176,           // invisible wall for cars and the player
+};
 
 export const PLAYER = {
-  width: 72,
-  height: 24,
-  speed: 560,
-  invulnerable: 1.5,
+  walkSpeed: 7.2,
+  sprintSpeed: 11.5,
+  radius: 0.55,
+  maxHealth: 100,
+  punchRange: 1.7,
+  punchDamage: 34,
+  gunDamage: 26,
+  gunRange: 42,
+  fireCooldown: 0.22,
 };
 
-export const LIVES = 3;
-
-export const BLOCK = {
-  minWidth: 40,
-  maxWidth: 110,
-  height: 36,
-  speed: 240,
-  speedPerLevel: 30,
-  speedJitter: 90,
-  interval: 0.55,
-  intervalScale: 0.88,
-  minInterval: 0.14,
-  dodgePoints: 1,
+export const CAR = {
+  accel: 15.5,
+  brake: 26,
+  reverse: 8,
+  drag: 0.55,
+  gripTurn: 1.85,          // steering rate at speed
+  maxSpeed: 41,            // ~92 mph on the speedo
+  radius: 1.55,
 };
 
-export const COIN = {
-  size: 24,
-  speed: 190,
-  speedPerLevel: 14,
-  interval: 1.4,
-  intervalJitter: 0.8,
-  points: 10,
+export const WANTED = {
+  // crime points: 100 points = one star
+  theft: 60,
+  hitPed: 55,
+  hitCar: 22,
+  shotFired: 14,
+  rivalDown: 45,
+  missionHeat: 130,
+  decayPerSecond: 3.2,     // only while no police officer can see the player
+  bustFillSeconds: 2.6,    // standing next to a stopped officer fills the meter
 };
-
-/** Seconds of play per level, and the last level: speeds and spawn rates stop growing there. */
-export const LEVEL = { seconds: 12, max: 12 };
-
-/** How many falling things can exist at once; the pool is allocated once, at boot. */
-export const POOL_SIZE = 64;
 
 export const PALETTE = {
-  backdrop: '#11141b',
-  sky: '#1b1f2a',
-  ground: '#2a3040',
-  player: '#4fc3f7',
-  block: '#e5534b',
-  coin: '#f2c94c',
-  panel: '#252b38',
-  text: '#eef1f5',
-  muted: '#8b93a3',
+  sky: 0x2c1a4d,
+  fog: 0x51325e,
+  sun: 0xffb36b,
+  road: 0x2e2a33,
+  roadLine: 0xf7d774,
+  sidewalk: 0x8d8578,
+  sand: 0xe8cf9f,
+  ocean: 0x1d6f8e,
+  grass: 0x4d7d43,
+  buildingTones: [0xd9a066, 0xe8e3d8, 0x9fd8e8, 0xf2b8c6, 0xb8e6c9, 0xf7e8a0, 0xc9b8f2, 0xe88f5d, 0xfff3e0, 0x7fd4c1],
+  carPaints: [0xd23c2e, 0x2e7fd2, 0xf2b134, 0x39c26d, 0xe8e8ec, 0x22242a, 0x8e44ad, 0xff6fa5, 0x18b8a6, 0xf26d21],
+  policeBody: 0xf2f4f6,
+  policeTrim: 0x1d3fbf,
+  taxiPaint: 0xffc21f,
 };
 
-export const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
+export const NAMES = {
+  city: 'Port Solmar',
+  player: 'Rico Vale',
+  fixer: 'Marina Sol',
+  crew: 'the Marina crew',
+  rivals: 'the Coral Kings',
+  police: 'Solmar PD',
+  garage: 'Marina’s Garage',
+  clinic: 'Solmar Clinic',
+  hideout: 'the Palms Hideout',
+};
 
-/** Where the best score is kept between visits (this browser only). */
-export const BEST_KEY = 'block-dodger.best';
+export const CAR_MODELS = [
+  { name: 'Cielo Convertible', topSpeed: 1.12, accel: 1.1, hue: 0 },
+  { name: 'Brumo Pickup', topSpeed: 0.88, accel: 0.95, hue: 1 },
+  { name: 'Vela Sedan', topSpeed: 1.0, accel: 1.0, hue: 2 },
+  { name: 'Tiburon Coupe', topSpeed: 1.18, accel: 1.2, hue: 3 },
+  { name: 'Palma Taxi', topSpeed: 0.95, accel: 0.95, hue: 4 },
+  { name: 'Duna Buggy', topSpeed: 0.92, accel: 1.15, hue: 5 },
+];
