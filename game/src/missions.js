@@ -49,7 +49,7 @@ class Rival {
       this.strafeTimer -= dt;
       if (this.strafeTimer <= 0) {
         this.strafe *= -1;
-        this.strafeTimer = 1 + Math.random() * 2;
+        this.strafeTimer = game.missions.rng.float(1, 3);
       }
       // Keep a fighting distance: close in past 14, back off under 6.
       let mx = 0;
@@ -63,7 +63,7 @@ class Rival {
       game.world.collideCircle(this.pos, 0.45);
       this.shootTimer -= dt;
       if (this.shootTimer <= 0 && dist < 30) {
-        this.shootTimer = 1.1 + Math.random() * 1.1;
+        this.shootTimer = game.missions.rng.float(1.1, 2.2);
         game.rivalShot(this);
       }
     } else {
@@ -328,7 +328,9 @@ export class Missions {
       g.hud.showToast(`Fare paid $${pay}`);
       this.taxi = null;
       this.setObjective(null);
-      if (this.stage < 5 && !this.objective) this.startStory();
+      // Fares only run after the campaign (see maybeStartTaxi), so there is
+      // no story objective to restore here — the next cab hailed offers the
+      // next fare.
     }
   }
 
@@ -354,11 +356,11 @@ export class Missions {
     if (!at) {
       const t = this.race.t;
       this.race = null;
-      const best = this.raceBest && t >= this.raceBest;
-      if (!this.raceBest || t < this.raceBest) this.raceBest = t;
+      const isBest = !this.raceBest || t < this.raceBest;
+      if (isBest) this.raceBest = t;
       this.game.addCash(300);
       this.game.sound.cash();
-      this.game.hud.showToast(`Sprint finished in ${t.toFixed(1)}s — $300${best ? '' : ' · NEW BEST'}`);
+      this.game.hud.showToast(`Sprint finished in ${t.toFixed(1)}s — $300${isBest ? ' · NEW BEST' : ''}`);
       this.game.saveGame();
       this.setObjective(null);
       return;
@@ -428,14 +430,14 @@ export class Missions {
         }
       }
     }
-    // The King of Solmar clock.
-    if (this.stage === 4 && this.checkpoints && this.checkpoints.length >= 0 && this.objective && this.objective.kind === 'goto' && this.raceTimer !== undefined && this.stage < 5) {
+    // The King of Solmar clock: it runs only while the finale's checkpoint
+    // chain is live (stage 4, a timer set, checkpoints still to visit).
+    if (this.stage === 4 && this.checkpoints && this.raceTimer !== undefined &&
+        this.objective && this.objective.kind === 'goto') {
       this.raceTimer -= dt;
-      if (this.objective) {
-        const left = 6 - this.checkpoints.length;
-        this.objective.label = `Checkpoint ${left}/6 — ${Math.ceil(this.raceTimer)}s left`;
-        g.hud.setObjective(this.objective.label);
-      }
+      const left = 6 - this.checkpoints.length;
+      this.objective.label = `Checkpoint ${left}/6 — ${Math.ceil(this.raceTimer)}s left`;
+      g.hud.setObjective(this.objective.label);
       if (this.raceTimer <= 0) {
         this.raceTimer = undefined;
         this.checkpoints = null;

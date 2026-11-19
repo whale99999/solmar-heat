@@ -16,6 +16,8 @@ export const WORLD = {
 export const PLAYER = {
   walkSpeed: 7.2,
   sprintSpeed: 11.5,
+  accelRate: 13,           // how fast on-foot velocity catches up with intent
+  turnRate: 14,            // how fast Rico turns to face his movement
   radius: 0.55,
   maxHealth: 100,
   punchRange: 1.7,
@@ -29,10 +31,32 @@ export const CAR = {
   accel: 15.5,
   brake: 26,
   reverse: 8,
+  reverseTop: 16,          // fastest the reverse gear will pull, whatever the model
   drag: 0.55,
+  handbrakeDrag: 26,       // speed scrubbed per second with the handbrake held
   gripTurn: 1.85,          // steering rate at speed
   maxSpeed: 41,            // ~92 mph on the speedo
   radius: 1.55,
+};
+
+export const POLICE = {
+  sightRange: 60,          // an officer this close keeps the heat from cooling
+  spawnMin: 62,            // pursuit cars appear on a ring this far out...
+  spawnMax: 86,            // ...up to this far, always off-screen
+  spawnInterval: 1.6,      // seconds between reinforcements
+  retireRange: 150,        // officers farther than this give up and despawn
+  shootStars: 3,           // at this many stars stopped officers open fire
+  shootRange: 20,
+  ramRange: 11,            // this close to a driving player, they stop being polite
+  bustRange: 6.5,          // an officer this close to a slow player makes the bust
+};
+
+export const GAME = {
+  dayRate: 1.5,            // game-clock minutes per real second
+  crimeDebounceMs: 1200,   // one incident, one report: same crime inside this window counts once
+  repairCost: 50,          // Marina's crew patches a car for this
+  bustFine: 150,           // bail, capped by the cash on hand
+  wastedFine: 100,         // the clinic's bill, likewise capped
 };
 
 export const WANTED = {

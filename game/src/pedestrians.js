@@ -64,6 +64,11 @@ export class Pedestrians {
       line: 0,
       side: rng.pick([-1, 1]),
       dir: rng.pick([-1, 1]),
+      // A pace and a stride phase of their own: without them every stroller
+      // walks at the same speed and swings their legs on the same beat,
+      // which reads as a chorus line rather than a crowd.
+      pace: rng.spread(1.9, 0.45),
+      phase: rng.float(0, Math.PI * 2),
     };
     if (onBeach) {
       ped.pos.set(rng.float(-190, 190), 0, rng.float(WORLD.beachZ + 3, WORLD.oceanZ - 5));
@@ -102,7 +107,6 @@ export class Pedestrians {
   }
 
   update(dt, world) {
-    const t = performance.now() / 1000;
     for (const ped of this.peds) {
       if (ped.state === 'down') {
         ped.down -= dt;
@@ -114,7 +118,7 @@ export class Pedestrians {
       }
       let vx = 0;
       let vz = 0;
-      const walkSpeed = ped.state === 'flee' ? 6.4 : 1.9;
+      const walkSpeed = ped.state === 'flee' ? ped.pace * 3.3 : ped.pace;
       if (ped.state === 'flee') {
         const dx = ped.pos.x - ped.fleeFrom.x;
         const dz = ped.pos.z - ped.fleeFrom.z;
@@ -148,16 +152,21 @@ export class Pedestrians {
       ped.pos.x += vx * dt;
       ped.pos.z += vz * dt;
       world.collideCircle(ped.pos, 0.4);
+      // Nobody wades into the sea, even mid-panic: the waterline is a wall
+      // for people (cars and the player use the looser world edge).
+      if (ped.pos.z > WORLD.oceanZ - 1.5) ped.pos.z = WORLD.oceanZ - 1.5;
       if (vx || vz) ped.angle = Math.atan2(vx, vz);
       ped.mesh.rotation.y = ped.angle;
-      // Legs and arms swing with the stride.
-      const swing = Math.sin(t * (ped.state === 'flee' ? 13 : 7) + ped.pos.x) * 0.55;
+      // Legs and arms swing with the stride, on this ped's own phase and at
+      // a rate that follows their pace, not a global clock.
+      ped.phase += dt * walkSpeed * (ped.state === 'flee' ? 2.1 : 1.85);
+      const swing = Math.sin(ped.phase) * 0.55;
       const u = ped.mesh.userData;
       u.legL.rotation.x = swing;
       u.legR.rotation.x = -swing;
       u.armL.rotation.x = -swing * 0.8;
       u.armR.rotation.x = swing * 0.8;
-      ped.mesh.position.y = Math.abs(Math.sin(t * 7 + ped.pos.x)) * 0.05;
+      ped.mesh.position.y = Math.abs(Math.sin(ped.phase)) * 0.05;
     }
   }
 

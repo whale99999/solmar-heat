@@ -19,7 +19,22 @@ export class Input {
       if (['ArrowUp', 'ArrowDown', 'Space'].includes(e.code)) e.preventDefault();
     });
     addEventListener('keyup', (e) => this.held.delete(e.code));
-    addEventListener('blur', () => this.held.clear());
+    // Losing the window mid-press must not leave anything stuck: a held key
+    // the game never sees released would steer forever, a latched press would
+    // fire on refocus, and a mouse button held through an alt-tab would keep
+    // the pistol shooting. Drop the lot, every time the page goes away.
+    const releaseAll = () => {
+      this.held.clear();
+      this.pressed.clear();
+      this.mouseDown = false;
+      this.mouseClicked = false;
+      this.mouseDX = 0;
+      this.mouseDY = 0;
+    };
+    addEventListener('blur', releaseAll);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) releaseAll();
+    });
 
     canvas.addEventListener('mousedown', (e) => {
       if (e.button === 0) {

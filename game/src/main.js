@@ -6,7 +6,7 @@
 // what counts as a crime, what a bullet hits, what death and arrest cost.
 
 import * as THREE from 'three';
-import { WORLD, PLAYER, WANTED, NAMES } from './config.js';
+import { WORLD, PLAYER, WANTED, NAMES, GAME } from './config.js';
 import { Rng } from './random.js';
 import { Input } from './input.js';
 import { Sound } from './audio.js';
@@ -99,7 +99,7 @@ class Game {
   reportCrime(kind, points, at) {
     // One crime, one report — a burst of collisions is a single incident.
     const now = performance.now();
-    if (this.crimeTimers[kind] && now - this.crimeTimers[kind] < 1200) return;
+    if (this.crimeTimers[kind] && now - this.crimeTimers[kind] < GAME.crimeDebounceMs) return;
     this.crimeTimers[kind] = now;
     this.police.reportCrime(points, at || this.player.pos);
   }
@@ -250,7 +250,7 @@ class Game {
   }
 
   respawn() {
-    const fine = this.state === 'busted' ? Math.min(this.cash, 150) : Math.min(this.cash, 100);
+    const fine = this.state === 'busted' ? Math.min(this.cash, GAME.bustFine) : Math.min(this.cash, GAME.wastedFine);
     this.cash -= fine;
     if (this.player.car) {
       this.player.car = null;
@@ -304,13 +304,13 @@ class Game {
     if (player.car) {
       const garage = world.landmarks.garage;
       const nearGarage = player.car.pos.distanceTo(new THREE.Vector3(garage.x, 0, garage.z)) < 10;
-      if (nearGarage && player.car.health < 100 && this.cash >= 50) {
-        this.cash -= 50;
+      if (nearGarage && player.car.health < 100 && this.cash >= GAME.repairCost) {
+        this.cash -= GAME.repairCost;
         player.car.health = 100;
         player.car.dead = false;
         player.car.mesh.rotation.z = 0;
         this.sound.cash();
-        this.hud.showToast('Marina\'s crew patched the car up — $50');
+        this.hud.showToast(`Marina's crew patched the car up — $${GAME.repairCost}`);
         return;
       }
       player.exitCar(world);
@@ -363,7 +363,9 @@ class Game {
     if (player.car) {
       const garage = this.world.landmarks.garage;
       if (player.car.pos.distanceTo(new THREE.Vector3(garage.x, 0, garage.z)) < 10 && player.car.health < 100) {
-        return this.cash >= 50 ? 'E — repair the car ($50)' : 'The garage wants $50 to repair';
+        return this.cash >= GAME.repairCost
+          ? `E — repair the car ($${GAME.repairCost})`
+          : `The garage wants $${GAME.repairCost} to repair`;
       }
       return 'E — get out · SPACE — handbrake';
     }
@@ -455,7 +457,7 @@ class Game {
       this.refreshHud();
       return;
     }
-    this.clockMinutes += dt * 1.5;
+    this.clockMinutes += dt * GAME.dayRate;
     const look = this.input.lookDelta();
     this.camYaw += look.x;
 
@@ -496,8 +498,18 @@ class Game {
       this.sound.setEngine(false, 0);
     }
 
-    const obstacles = [...this.parked.map((c) => c.pos), ...(player.car ? [player.car.pos] : [])];
+    // Traffic brakes for parked cars, the player's car — and for Rico
+    // himself on foot, who used to be invisible to their obstacle checks
+    // and could be rolled over by a driver who never even slowed down.
+    const obstacles = [...this.parked.map((c) => c.pos), ...(player.car ? [player.car.pos] : [player.pos])];
     this.traffic.update(dt, this.world, obstacles);
+    // Honks are one-frame flags from the traffic AI; play the audible ones.
+    for (const car of this.traffic.cars) {
+      if (car.driver && car.driver.honk) {
+        car.driver.honk = 0;
+        if (car.pos.distanceTo(player.pos) < 42) this.sound.honk();
+      }
+    }
     for (const car of this.parked) {
       if (car !== player.car) {
         car.update(dt, { throttle: 0, steer: 0, handbrake: true }, this.world);

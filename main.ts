@@ -20,19 +20,31 @@
 // Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
 
-import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-game.ts';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 const out = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
+const MAX_SCREENSHOTS = 4; // the dossier cap below; the first by name is the cover
+
+if (!existsSync(join(here, 'game', 'index.html'))) {
+  throw new Error('game/index.html is missing beside main.ts — there is no game to hand in');
+}
 
 mkdirSync(out, { recursive: true });
 cpSync(join(here, 'game'), join(out, 'game'), { recursive: true });
 mkdirSync(join(out, 'screenshots'), { recursive: true });
 if (existsSync(join(here, 'screenshots'))) {
-  cpSync(join(here, 'screenshots'), join(out, 'screenshots'), { recursive: true });
+  // Copy the staged screenshots in name order, and only as many as the
+  // dossier accepts: a fifth file staged during development must not sink
+  // the hand-in at the gate.
+  const shots = readdirSync(join(here, 'screenshots')).sort().slice(0, MAX_SCREENSHOTS);
+  for (const name of shots) {
+    cpSync(join(here, 'screenshots', name), join(out, 'screenshots', name));
+  }
+  console.log(`handed in ${shots.length} screenshot(s): ${shots.join(', ')}`);
 }
 
 writeFileSync(

@@ -76,12 +76,15 @@ export function makeCarMesh(modelIndex, paintHex, isPolice = false, isTaxi = fal
   }
 
   // Lights: warm headlights, red tails; police get a light bar, taxis a sign.
+  // The tail materials are kept per car so braking can flare them.
   const headMat = new THREE.MeshBasicMaterial({ color: 0xfff2b0 });
+  const tails = [];
   for (const x of [-0.6, 0.6]) {
     const h = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.16, 0.06), headMat);
     h.position.set(x, 0.78, -length / 2 - 0.02);
-    const t = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.14, 0.06), new THREE.MeshBasicMaterial({ color: 0xff3344 }));
+    const t = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.14, 0.06), new THREE.MeshBasicMaterial({ color: 0xd21f33 }));
     t.position.set(x, 0.82, length / 2 + 0.02);
+    tails.push(t.material);
     g.add(h, t);
   }
   let lightBar = null;
@@ -105,7 +108,7 @@ export function makeCarMesh(modelIndex, paintHex, isPolice = false, isTaxi = fal
     g.add(sign);
   }
 
-  g.userData = { wheels, lightBar, length };
+  g.userData = { wheels, lightBar, length, tails };
   return { group: g, model };
 }
 
@@ -153,19 +156,25 @@ export class Car {
     }
     const top = CAR.maxSpeed * this.model.topSpeed;
     const accel = CAR.accel * this.model.accel;
-    if (control.throttle > 0) {
+    // The handbrake locks the driven wheels: the engine does not get to
+    // argue with it, it just scrubs speed at CAR.handbrakeDrag.
+    if (control.throttle > 0 && !control.handbrake) {
       // Gas: while rolling backwards it brakes first, then pulls away.
       this.speed += accel * control.throttle * dt * (this.speed < -0.5 ? 2.4 : 1);
     } else if (control.throttle < 0) {
       if (this.speed > 0.5) this.speed -= CAR.brake * -control.throttle * dt;
       else this.speed += control.throttle * accel * 0.62 * dt; // reverse gear
-      if (this.speed < -CAR.reverse * 2.4) this.speed = -CAR.reverse * 2.4;
+      if (this.speed < -CAR.reverseTop) this.speed = -CAR.reverseTop;
     }
     // Drag and rolling resistance settle the car at its model's top speed.
     this.speed -= this.speed * CAR.drag * dt * (Math.abs(this.speed) / top || 0);
     if (!control.throttle) this.speed -= Math.sign(this.speed) * Math.min(Math.abs(this.speed), 3.2 * dt);
     if (this.speed > top) this.speed = top;
-    if (control.handbrake) this.speed -= Math.sign(this.speed) * Math.min(Math.abs(this.speed), 26 * dt);
+    if (control.handbrake) this.speed -= Math.sign(this.speed) * Math.min(Math.abs(this.speed), CAR.handbrakeDrag * dt);
+    // Brake lights flare while the car is actually shedding speed — a
+    // parked car sits on its handbrake all day without glowing.
+    const braking = Math.abs(this.speed) > 0.5 && (control.handbrake || control.throttle < 0);
+    for (const m of this.mesh.userData.tails) m.color.setHex(braking ? 0xff5a3c : 0xd21f33);
 
     const speedRatio = THREE.MathUtils.clamp(this.speed / top, -1, 1);
     const steerAuthority = Math.min(1, Math.abs(this.speed) / 6) * (control.handbrake ? 1.5 : 1);

@@ -59,7 +59,9 @@ export class Traffic {
       cruise: rng.float(9, 14.5),
       panic: 0,
       turnCooldown: rng.float(2, 6),
-      honk: 0,
+      honk: 0,        // set to 1 for one frame when the driver honks; main plays it
+      blockedFor: 0,  // seconds spent held up by whatever is ahead
+      honkCooldown: rng.float(0, 4),
     };
     return car;
   }
@@ -109,13 +111,25 @@ export class Traffic {
       const side = Math.abs(rx * f.z - rz * f.x);
       return ahead > 0 && ahead < dist && side < 2.4;
     };
+    let blocked = false;
     for (const other of this.cars) {
-      if (other !== car && obstacle(other.pos.x, other.pos.z, 10)) { throttle = -0.7; break; }
+      if (other !== car && obstacle(other.pos.x, other.pos.z, 10)) { throttle = -0.7; blocked = true; break; }
     }
-    if (throttle > -0.7 && obstacles) {
+    if (!blocked && obstacles) {
       for (const o of obstacles) {
-        if (obstacle(o.x, o.z, 10)) { throttle = -0.7; break; }
+        if (obstacle(o.x, o.z, 10)) { throttle = -0.7; blocked = true; break; }
       }
+    }
+
+    // Held up long enough, a Solmar driver says so: one honk, then a few
+    // seconds of dignity before the next. Panic skips the wait entirely.
+    d.honkCooldown -= dt;
+    if (blocked && car.speed < 1.5) d.blockedFor += dt;
+    else d.blockedFor = 0;
+    if ((d.blockedFor > 1.4 || d.panic > 0) && d.honkCooldown <= 0) {
+      d.honk = 1;
+      d.honkCooldown = this.rng.float(2.5, 6);
+      d.blockedFor = 0;
     }
 
     if (d.panic > 0) {

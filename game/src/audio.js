@@ -16,13 +16,26 @@ export class Sound {
   }
 
   wake() {
-    if (!this.enabled || this.ctx) return;
+    if (!this.enabled) return;
+    if (this.ctx) {
+      // A context created during one gesture can still be left suspended by
+      // the autoplay policy; every later gesture is a chance to unstick it.
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      return;
+    }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     this.ctx = new AC();
+    if (this.ctx.state === 'suspended') this.ctx.resume();
     this.master = this.ctx.createGain();
     this.master.gain.value = 0.5;
     this.master.connect(this.ctx.destination);
+    // One shared second of white noise, shaped per effect by the bandpass
+    // filter — bursts used to allocate a fresh buffer every single shot.
+    const len = this.ctx.sampleRate;
+    this.noiseBuffer = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+    const data = this.noiseBuffer.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
   }
 
   tone(freq, dur, type = 'square', vol = 0.2, slideTo = null, delay = 0) {
@@ -43,19 +56,28 @@ export class Sound {
   noise(dur, vol = 0.25, freq = 1200, delay = 0) {
     if (!this.ctx) return;
     const t0 = this.ctx.currentTime + delay;
-    const len = Math.max(1, Math.floor(this.ctx.sampleRate * dur));
-    const buffer = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
     const src = this.ctx.createBufferSource();
-    src.buffer = buffer;
+    src.buffer = this.noiseBuffer;
+    // A random offset into the shared buffer, so repeated bursts (a burst of
+    // gunfire) never sound like the same sample stamped twice. The decay the
+    // per-call buffer used to bake in now lives in the gain envelope.
+    src.loop = true;
+    src.playbackRate.value = 0.9 + Math.random() * 0.2;
     const filter = this.ctx.createBiquadFilter();
     filter.type = 'bandpass';
     filter.frequency.value = freq;
     const gain = this.ctx.createGain();
-    gain.gain.value = vol;
+    gain.gain.setValueAtTime(vol, t0);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
     src.connect(filter).connect(gain).connect(this.master);
-    src.start(t0);
+    src.start(t0, Math.random() * 0.5);
+    src.stop(t0 + dur + 0.02);
+  }
+
+  honk() {
+    // A traffic driver's two-tone complaint, short and not too proud.
+    this.tone(370, 0.16, 'square', 0.12);
+    this.tone(466, 0.16, 'square', 0.1);
   }
 
   shot() {
@@ -133,7 +155,9 @@ export class Sound {
       this.engineOsc = null;
     }
     if (this.engineOsc) {
-      this.engineOsc.frequency.value = 55 + speedRatio * 130;
+      // Glide to the new pitch instead of stepping: a raw .value set every
+      // frame zippers audibly as the speed jitters.
+      this.engineOsc.frequency.setTargetAtTime(55 + speedRatio * 130, this.ctx.currentTime, 0.06);
     }
   }
 
@@ -153,7 +177,8 @@ export class Sound {
     }
     if (this.sirenOsc) {
       this.sirenPhase += dt * 2.4;
-      this.sirenOsc.frequency.value = 700 + Math.sin(this.sirenPhase * Math.PI) * 260;
+      this.sirenOsc.frequency.setTargetAtTime(
+        700 + Math.sin(this.sirenPhase * Math.PI) * 260, this.ctx.currentTime, 0.03);
     }
   }
 }

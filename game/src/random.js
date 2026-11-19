@@ -28,4 +28,21 @@ export class Rng {
   chance(p) {
     return this.next() < p;
   }
+  // Fisher–Yates with this stream: a copy of the list in a seeded order, so
+  // layouts that want variety without favourites (neon signs, crowd colours)
+  // still come out identical on every load.
+  shuffle(list) {
+    const out = [...list];
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(this.next() * (i + 1));
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+  }
+  // A rough bell curve around a centre: the average of three draws, so most
+  // values land mid-range and the extremes stay rare (crowd walking speeds).
+  spread(centre, width) {
+    const t = (this.next() + this.next() + this.next()) / 3;
+    return centre + (t - 0.5) * 2 * width;
+  }
 }

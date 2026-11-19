@@ -38,6 +38,7 @@ export class Hud {
     this.objectiveText = '';
     this.objectiveDist = null;
     this.mapCtx = $('minimap').getContext('2d');
+    this.mapBase = null; // the static minimap layer, painted once
   }
 
   setCash(n) {
@@ -45,13 +46,13 @@ export class Hud {
   }
 
   setRespect(n) {
-    this.respectEl.textContent = `★ ${Math.floor(n)} RESPECT`;
+    this.respectEl.textContent = `RESPECT ★ ${Math.floor(n)}`;
   }
 
   setClock(minutes) {
     const h = Math.floor(minutes / 60) % 24;
     const m = Math.floor(minutes % 60);
-    this.clockEl.textContent = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    this.clockEl.textContent = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} · PORT SOLMAR`;
   }
 
   setStars(n) {
@@ -64,6 +65,9 @@ export class Hud {
   setHealth(frac) {
     this.healthEl.style.width = `${Math.max(0, frac * 100)}%`;
     this.healthEl.style.background = frac < 0.3 ? '#ff4757' : '#2ee6a8';
+    // Under a third, the bar throbs — health you have to notice without
+    // having to read it. setHealth runs every frame, so the pulse is free.
+    this.healthEl.style.opacity = frac < 0.3 ? `${0.55 + 0.45 * Math.abs(Math.sin(performance.now() / 240))}` : '1';
   }
 
   setBust(frac) {
@@ -149,12 +153,16 @@ export class Hud {
   // The minimap: the whole city at a glance. Roads as a grid, the beach as a
   // band, the player as an arrow, police as flashing blips, the objective as
   // a gold diamond, rivals as red dots.
-  drawMinimap(game) {
-    const ctx = this.mapCtx;
+  // The static layer — backdrop, beach, water, the avenue grid — never
+  // changes, so it is painted once into an offscreen canvas and blitted;
+  // only the blips are drawn per frame.
+  paintMapBase() {
     const S = 188;
     const half = 230;
     const toPx = (x) => ((x + half) / (half * 2)) * S;
-    ctx.clearRect(0, 0, S, S);
+    const base = document.createElement('canvas');
+    base.width = base.height = S;
+    const ctx = base.getContext('2d');
     ctx.fillStyle = 'rgba(20,16,32,.92)';
     ctx.fillRect(0, 0, S, S);
     ctx.fillStyle = '#e8cf9f';
@@ -174,6 +182,17 @@ export class Hud {
       ctx.lineTo(S, toPx(c));
       ctx.stroke();
     }
+    this.mapBase = base;
+  }
+
+  drawMinimap(game) {
+    const ctx = this.mapCtx;
+    const S = 188;
+    const half = 230;
+    const toPx = (x) => ((x + half) / (half * 2)) * S;
+    if (!this.mapBase) this.paintMapBase();
+    ctx.clearRect(0, 0, S, S);
+    ctx.drawImage(this.mapBase, 0, 0);
     const dot = (x, z, color, r = 3) => {
       ctx.fillStyle = color;
       ctx.beginPath();

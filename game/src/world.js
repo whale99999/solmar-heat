@@ -125,6 +125,7 @@ export class World {
     this.scene = scene;
     this.rng = new Rng(WORLD.seed);
     this.colliders = [];
+    this.colliderGrid = new Map();
     this.signs = [];
     this.boats = [];
     // Landmark points sit on the avenue beside each landmark block, so a car
@@ -213,7 +214,20 @@ export class World {
   }
 
   addCollider(cx, cz, w, d) {
-    this.colliders.push({ x0: cx - w / 2, z0: cz - d / 2, x1: cx + w / 2, z1: cz + d / 2 });
+    const c = { x0: cx - w / 2, z0: cz - d / 2, x1: cx + w / 2, z1: cz + d / 2, id: this.colliders.length };
+    this.colliders.push(c);
+    // Broadphase: file the collider under every grid cell its box touches
+    // (padded by the largest mover radius), so collideCircle only ever
+    // tests the handful of buildings that could actually be in the way.
+    const cell = P;
+    const pad = 2.5;
+    for (let gx = Math.floor((c.x0 - pad) / cell); gx <= Math.floor((c.x1 + pad) / cell); gx++) {
+      for (let gz = Math.floor((c.z0 - pad) / cell); gz <= Math.floor((c.z1 + pad) / cell); gz++) {
+        const key = `${gx},${gz}`;
+        if (!this.colliderGrid.has(key)) this.colliderGrid.set(key, []);
+        this.colliderGrid.get(key).push(c);
+      }
+    }
   }
 
   buildBlocks() {
@@ -257,8 +271,9 @@ export class World {
 
   buildSignsAndLandmarks(spots) {
     const rng = this.rng;
-    // Neon signs on a sample of street-facing buildings.
-    const chosen = spots.filter((_, i) => i % 3 === 0).slice(0, 16);
+    // Neon signs on a seeded-shuffled sample of buildings: taking every
+    // third in build order clustered them on the same few blocks.
+    const chosen = rng.shuffle(spots).slice(0, 16);
     chosen.forEach((s, i) => {
       const [text, fg, bg] = SIGN_WORDS[i % SIGN_WORDS.length];
       const tex = signTexture(text, fg, bg);
@@ -416,7 +431,20 @@ export class World {
     if (pos.x > edge) { pos.x = edge; hit = true; }
     if (pos.z < -edge) { pos.z = -edge; hit = true; }
     if (pos.z > WORLD.oceanZ + 30) { pos.z = WORLD.oceanZ + 30; hit = true; }
-    for (const c of this.colliders) {
+    // Only the colliders filed under the cells this circle touches can be
+    // in its way; resolve them in their original insertion order, exactly
+    // as the old full scan did, so corner cases resolve identically.
+    const cell = P;
+    const reach = radius + 2.5;
+    const near = new Set();
+    for (let gx = Math.floor((pos.x - reach) / cell); gx <= Math.floor((pos.x + reach) / cell); gx++) {
+      for (let gz = Math.floor((pos.z - reach) / cell); gz <= Math.floor((pos.z + reach) / cell); gz++) {
+        const filed = this.colliderGrid.get(`${gx},${gz}`);
+        if (filed) for (const c of filed) near.add(c);
+      }
+    }
+    const ordered = [...near].sort((a, b) => a.id - b.id);
+    for (const c of ordered) {
       if (pos.x > c.x0 - radius && pos.x < c.x1 + radius && pos.z > c.z0 - radius && pos.z < c.z1 + radius) {
         const dxl = pos.x - (c.x0 - radius);
         const dxr = (c.x1 + radius) - pos.x;

@@ -23,6 +23,7 @@ export class Player {
     this.punchTimer = 0;
     this.dead = false;
     this.walkCycle = 0;
+    this.vel = { x: 0, z: 0 }; // actual on-foot velocity; intent is smoothed into it
     scene.add(this.mesh);
   }
 
@@ -35,6 +36,9 @@ export class Player {
     this.health = PLAYER.maxHealth;
     this.dead = false;
     this.car = null;
+    this.vel.x = 0;
+    this.vel.z = 0;
+    this._speedNow = 0;
     this.mesh.visible = true;
     this.mesh.rotation.x = 0;
   }
@@ -50,29 +54,49 @@ export class Player {
     const moving = mx !== 0 || mz !== 0;
     const sprint = input.down('ShiftLeft', 'ShiftRight');
     const speed = sprint ? PLAYER.sprintSpeed : PLAYER.walkSpeed;
-    this._speedNow = moving ? speed : 0;
+    // Velocity chases intent with a short ramp: setting off and stopping
+    // take a beat instead of snapping between 0 and full speed, and a sharp
+    // direction change bleeds speed through the turn like a real stride.
+    let wx = 0;
+    let wz = 0;
     if (moving) {
       const len = Math.hypot(mx, mz);
       const lx = mx / len;
       const lz = mz / len;
       const sin = Math.sin(aimYaw);
       const cos = Math.cos(aimYaw);
-      const wx = lx * cos + lz * sin;
-      const wz = -lx * sin + lz * cos;
-      this.pos.x += wx * speed * dt;
-      this.pos.z += wz * speed * dt;
-      this.angle = Math.atan2(wx, wz);
-      this.walkCycle += dt * (sprint ? 11 : 8);
+      wx = lx * cos + lz * sin;
+      wz = -lx * sin + lz * cos;
+    }
+    const blend = 1 - Math.exp(-PLAYER.accelRate * dt);
+    this.vel.x += (wx * speed - this.vel.x) * blend;
+    this.vel.z += (wz * speed - this.vel.z) * blend;
+    if (Math.abs(this.vel.x) < 0.02 && !moving) this.vel.x = 0;
+    if (Math.abs(this.vel.z) < 0.02 && !moving) this.vel.z = 0;
+    this.pos.x += this.vel.x * dt;
+    this.pos.z += this.vel.z * dt;
+    const actualSpeed = Math.hypot(this.vel.x, this.vel.z);
+    this._speedNow = actualSpeed;
+    if (actualSpeed > 0.4) {
+      // Turn toward the way he is actually moving, at a capped rate, so a
+      // reversal swings him around instead of flipping him in one frame.
+      const target = Math.atan2(this.vel.x, this.vel.z);
+      let diff = target - this.angle;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      const turn = 1 - Math.exp(-PLAYER.turnRate * dt);
+      this.angle += diff * turn;
+      this.walkCycle += dt * actualSpeed * 1.15;
     }
     world.collideCircle(this.pos, PLAYER.radius);
     this.mesh.rotation.y = this.angle;
     const u = this.mesh.userData;
-    const swing = moving ? Math.sin(this.walkCycle) * 0.6 : 0;
+    const swing = actualSpeed > 0.4 ? Math.sin(this.walkCycle) * 0.6 : 0;
     u.legL.rotation.x = swing;
     u.legR.rotation.x = -swing;
     u.armL.rotation.x = -swing * 0.7;
     u.armR.rotation.x = swing * 0.7;
-    this.mesh.position.y = moving ? Math.abs(Math.sin(this.walkCycle)) * 0.06 : 0;
+    this.mesh.position.y = actualSpeed > 0.4 ? Math.abs(Math.sin(this.walkCycle)) * 0.06 : 0;
 
     this.fireTimer -= dt;
     this.punchTimer -= dt;

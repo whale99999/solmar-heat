@@ -39,12 +39,16 @@ function addCar(game, modelIndex, paint, x, z, angle, speed = 0) {
   return car;
 }
 
-function base(game, cash, respect, health) {
+function base(game, cash, respect, health, stage) {
   game.cash = cash;
   game.respect = respect;
   game.player.health = health;
   game.player.hasGun = true;
   game.clockMinutes = 17 * 60 + 38;
+  // The campaign stage the scene depicts, so the save-derived HUD state
+  // (respect tier, which story beat the objective belongs to) is coherent
+  // with the moment being pictured, not whatever the local save holds.
+  game.missions.stage = stage;
 }
 
 function setCam(game, px, py, pz, lx, ly, lz) {
@@ -55,7 +59,7 @@ function setCam(game, px, py, pz, lx, ly, lz) {
 // The cover: Rico in a red Cielo convertible on the southern avenue, three
 // stars lit, a cruiser on his tail, the package objective on the HUD.
 function shotCover(game) {
-  base(game, 1250, 45, 86);
+  base(game, 1250, 45, 86, 1); // mid Package Run
   const laneZ = 3 * P - 3.6;
   clearTrafficNear(game, -10, laneZ, 60);
   const car = addCar(game, 0, 0xd23c2e, -16, laneZ, Math.PI / 2, 17);
@@ -77,7 +81,7 @@ function shotCover(game) {
 // On foot: Rico on the beachfront sidewalk, the avenue's traffic behind him,
 // the skyline ahead, a pickup beacon across town and one star of heat.
 function shotFoot(game) {
-  base(game, 640, 25, 100);
+  base(game, 640, 25, 100, 1); // mid Package Run, on foot between pickups
   const z = 3 * P + WORLD.roadHalf + 1.7;
   clearTrafficNear(game, -40, 3 * P, 46);
   game.player.pos.set(-40, 0, z);
@@ -104,7 +108,7 @@ function shotFoot(game) {
 // The chase: five stars, the bust bar climbing, a Tiburon coupe flat out up
 // the western avenue with cruisers behind and one cutting him off ahead.
 function shotChase(game) {
-  base(game, 2210, 60, 64);
+  base(game, 2210, 60, 64, 3); // the Harbor Heist escape
   const laneX = -P - 3.6;
   clearTrafficNear(game, laneX, 10, 70);
   const car = addCar(game, 3, 0x2e7cd6, laneX, 26, Math.PI, 26);
@@ -129,7 +133,7 @@ function shotChase(game) {
 // camera sits north-east of the lot and looks south-west, so the fight plays
 // out against the sand, the palms and the water.
 function shotMission(game) {
-  base(game, 1740, 52, 71);
+  base(game, 1740, 52, 71, 2); // Rival Colors, the marina lot fight
   const lot = { x: game.world.landmarks.marina.x + 14, z: WORLD.beachZ + 5 };
   clearTrafficNear(game, lot.x, 3 * P, 40);
   // The fight happens on the open ground east of the crate cluster, so no
@@ -149,7 +153,13 @@ function shotMission(game) {
     if (s.dead) mesh.rotation.x = -Math.PI / 2;
     else mesh.rotation.y = Math.atan2(game.player.pos.x - s.x, game.player.pos.z - s.z);
     game.scene.add(mesh);
-    game.missions.rivals.push({ mesh, pos: mesh.position, dead: s.dead, health: s.dead ? 0 : 60 });
+    // Stand-ins with the real Rival's field shape, so anything that reads
+    // a rival (the minimap today, anything else tomorrow) sees a whole one.
+    game.missions.rivals.push({
+      mesh, pos: mesh.position, dead: s.dead, health: s.dead ? 0 : 60,
+      post: { x: s.x, z: s.z }, shootTimer: 99, strafe: 1, strafeTimer: 9, walkCycle: 0,
+      hurt() {}, update() {},
+    });
   }
   game.police.heat = 200;
   game.missions.setObjective({ kind: 'fight', label: `Beat ${NAMES.rivals} — 2 standing` });
